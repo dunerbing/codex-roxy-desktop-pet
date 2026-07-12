@@ -24,6 +24,8 @@ It backs up an existing installation before replacing it.
 The installer also enables the lightweight voice companion at Windows sign-in.
 It watches only the bounds of the small Codex pet window and does not capture
 keyboard input, screenshots, or network data.
+It waits for Codex to exit before persisting the maximum supported pet width of
+`224 px`, avoiding configuration conflicts with the running app.
 
 ## Uninstall
 

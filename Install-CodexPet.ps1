@@ -31,6 +31,7 @@ Copy-Item -LiteralPath (Join-Path $source 'pet.json') -Destination $destination 
 Copy-Item -LiteralPath (Join-Path $source 'spritesheet.png') -Destination $destination -Force
 Copy-Item -LiteralPath (Join-Path $source 'encouragement.wav') -Destination $destination -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Voice-Companion.ps1') -Destination $destination -Force
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Apply-MaxPetSizeAfterExit.ps1') -Destination $destination -Force
 
 $startupDirectory = [Environment]::GetFolderPath('Startup')
 $shortcutPath = Join-Path $startupDirectory 'Roxy Codex Pet Voice.lnk'
@@ -47,9 +48,15 @@ Start-Process powershell.exe -WindowStyle Hidden -ArgumentList @(
     '-NoProfile', '-ExecutionPolicy', 'Bypass',
     '-File', ('"{0}"' -f (Join-Path $destination 'Voice-Companion.ps1'))
 )
+Start-Process powershell.exe -WindowStyle Hidden -ArgumentList @(
+    '-NoProfile', '-ExecutionPolicy', 'Bypass',
+    '-File', ('"{0}"' -f (Join-Path $destination 'Apply-MaxPetSizeAfterExit.ps1')),
+    '-WaitForAppExit'
+)
 
 Write-Host ''
 Write-Host 'Roxy Inspired Mage installed successfully.' -ForegroundColor Green
 Write-Host "Installed at: $destination"
 Write-Host 'Restart Codex, then select it from Settings > Pets.'
 Write-Host 'Voice companion enabled: hover over the pet to hear encouragement.'
+Write-Host 'Fully quit and reopen Codex once to apply the maximum 224 px pet size.'
