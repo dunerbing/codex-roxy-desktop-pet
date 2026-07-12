@@ -8,9 +8,19 @@ param(
 $ErrorActionPreference = 'Stop'
 
 if ([string]::IsNullOrWhiteSpace($AudioPath)) {
+    $projectMp3 = Join-Path $PSScriptRoot 'pet\encouragement.mp3'
+    $installedMp3 = Join-Path $PSScriptRoot 'encouragement.mp3'
     $projectAudio = Join-Path $PSScriptRoot 'pet\encouragement.wav'
     $installedAudio = Join-Path $PSScriptRoot 'encouragement.wav'
-    $AudioPath = if (Test-Path -LiteralPath $projectAudio) { $projectAudio } else { $installedAudio }
+    $AudioPath = if (Test-Path -LiteralPath $projectMp3) {
+        $projectMp3
+    } elseif (Test-Path -LiteralPath $installedMp3) {
+        $installedMp3
+    } elseif (Test-Path -LiteralPath $projectAudio) {
+        $projectAudio
+    } else {
+        $installedAudio
+    }
 }
 
 if (-not (Test-Path -LiteralPath $AudioPath)) {
@@ -24,7 +34,7 @@ if (-not $mutex.WaitOne(0, $false)) {
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
-Add-Type -TypeDefinition @'
+Add-Type -ReferencedAssemblies @('System.dll', 'System.Drawing.dll') -TypeDefinition @'
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -65,8 +75,16 @@ public static class RoxyPetWindow {
 }
 '@
 
-$player = [System.Media.SoundPlayer]::new($AudioPath)
-$player.Load()
+$isWave = [IO.Path]::GetExtension($AudioPath).Equals('.wav', [StringComparison]::OrdinalIgnoreCase)
+if ($isWave) {
+    $player = [System.Media.SoundPlayer]::new($AudioPath)
+    $player.Load()
+} else {
+    Add-Type -AssemblyName PresentationCore
+    $player = [Windows.Media.MediaPlayer]::new()
+    $player.Open([Uri]::new($AudioPath))
+    $player.Volume = 1
+}
 $wasInside = $false
 $lastPlayed = [DateTime]::MinValue
 
@@ -77,6 +95,9 @@ try {
         $inside = -not $overlay.IsEmpty -and $overlay.Contains($cursor)
         $cooldownElapsed = ([DateTime]::UtcNow - $lastPlayed).TotalMilliseconds -ge $CooldownMilliseconds
         if ($inside -and -not $wasInside -and $cooldownElapsed) {
+            if (-not $isWave) {
+                $player.Position = [TimeSpan]::Zero
+            }
             $player.Play()
             $lastPlayed = [DateTime]::UtcNow
         }
@@ -84,7 +105,12 @@ try {
         Start-Sleep -Milliseconds $PollMilliseconds
     }
 } finally {
-    $player.Dispose()
+    if ($isWave) {
+        $player.Dispose()
+    } else {
+        $player.Stop()
+        $player.Close()
+    }
     $mutex.ReleaseMutex()
     $mutex.Dispose()
 }

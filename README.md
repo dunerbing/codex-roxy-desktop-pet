@@ -55,6 +55,10 @@ included voice companion therefore detects the same pointer-entry interaction
 that triggers the jump and plays the bundled local WAV file. It does not modify
 the Codex application package.
 
+To use a personal voice clip, name it `encouragement.mp3` and place it beside
+the installed `Voice-Companion.ps1`. The MP3 is preferred over the bundled WAV
+and remains local; do not redistribute audio unless you have permission.
+
 ## Project layout
 
 ```text
