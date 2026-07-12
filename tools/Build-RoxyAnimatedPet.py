@@ -4,7 +4,7 @@ import argparse
 import math
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageEnhance, ImageFilter
+from PIL import Image, ImageChops, ImageDraw, ImageEnhance, ImageFilter
 
 
 FRAME_W = 192
@@ -34,11 +34,13 @@ def feathered_polygon(size: tuple[int, int], points: list[tuple[int, int]], blur
     return mask.filter(ImageFilter.GaussianBlur(blur))
 
 
-def shift_region(image: Image.Image, mask: Image.Image, dx: float, dy: float, angle: float = 0) -> Image.Image:
+def shift_region(image: Image.Image, mask: Image.Image, dx: float, dy: float,
+                 angle: float = 0, center: tuple[int, int] | None = None) -> Image.Image:
     layer = Image.new("RGBA", image.size)
     layer.paste(image, mask=mask)
     if angle:
-        layer = layer.rotate(angle, Image.Resampling.BICUBIC, center=(FRAME_W // 2, FRAME_H // 2))
+        layer = layer.rotate(angle, Image.Resampling.BICUBIC,
+                             center=center or (FRAME_W // 2, FRAME_H // 2))
     moved = Image.new("RGBA", image.size)
     moved.alpha_composite(layer, (round(dx), round(dy)))
     cleared = image.copy()
@@ -121,11 +123,34 @@ def add_ground_effects(layer: Image.Image, strength: float) -> None:
             draw.ellipse((cx-radius, cy-radius, cx+radius, cy+radius), fill=(218, 231, 250, round(150 * strength)))
 
 
+def add_cloth_details(layer: Image.Image, skirt_lift: float, hat_sway: float, motion: float) -> None:
+    draw = ImageDraw.Draw(layer)
+    sway = max(-5, min(5, motion * 0.45))
+    hem_y = 160 - skirt_lift
+    alpha = round(70 + min(1, abs(motion) / 7) * 70)
+    for index, top_x in enumerate((64, 78, 93, 108, 122)):
+        direction = -1 if index % 2 == 0 else 1
+        bottom_x = top_x + direction * 5 + sway
+        color = (230, 235, 250, alpha) if direction > 0 else (35, 35, 48, alpha)
+        draw.line((top_x, 132 - skirt_lift * 0.35, bottom_x, hem_y), fill=color, width=1)
+    draw.arc((53 + sway, 148 - skirt_lift, 137 + sway, 165 - skirt_lift),
+             8, 172, fill=(18, 20, 30, min(150, alpha + 15)), width=1)
+
+    # Small crease accents on the soft witch-hat cone become stronger while it swings.
+    hat_alpha = round(65 + min(1, abs(hat_sway) / 4) * 80)
+    draw.arc((89 + hat_sway, 12, 132 + hat_sway, 52), 205, 305,
+             fill=(82, 80, 92, hat_alpha), width=1)
+    draw.arc((103 + hat_sway, 18, 148 + hat_sway, 58), 190, 288,
+             fill=(8, 9, 14, min(155, hat_alpha + 20)), width=1)
+    draw.line((67 + hat_sway * 0.3, 54, 126 + hat_sway * 0.45, 57),
+              fill=(238, 238, 246, min(125, hat_alpha)), width=1)
+
+
 def render_frame(base: Image.Image, *, body_y: float = 0, body_x: float = 0,
                  squash: float = 0, tilt: float = 0, braid_sway: float = 0,
                  skirt_lift: float = 0, hand_wave: float = 0, mood: float = 0,
                  blink: float = 0, gem: float = 0.25, hearts: float = 0,
-                 heart_phase: float = 0, dust: float = 0) -> Image.Image:
+                 heart_phase: float = 0, dust: float = 0, hat_sway: float = 0) -> Image.Image:
     canvas = Image.new("RGBA", (FRAME_W, FRAME_H))
     sprite = base.copy()
     if squash:
@@ -139,12 +164,22 @@ def render_frame(base: Image.Image, *, body_y: float = 0, body_x: float = 0,
     left_braid = feathered_polygon(sprite.size, [(15, 67), (63, 72), (71, 169), (20, 172)])
     right_braid = feathered_polygon(sprite.size, [(119, 64), (176, 61), (181, 174), (127, 171)])
     skirt = feathered_polygon(sprite.size, [(48, 124), (137, 120), (145, 164), (43, 164)], 3)
-    free_hand = feathered_polygon(sprite.size, [(39, 103), (73, 99), (72, 134), (35, 138)], 3)
+    free_hand = feathered_polygon(sprite.size, [(36, 99), (76, 96), (76, 139), (31, 143)], 3)
+    hat = feathered_polygon(sprite.size, [(33, 4), (133, 3), (166, 60), (28, 65)], 2)
+    hat_tip = feathered_polygon(sprite.size, [(82, 3), (133, 3), (162, 44), (99, 47)], 2)
 
     sprite = shift_region(sprite, left_braid, -braid_sway * 0.75, abs(braid_sway) * 0.12, -braid_sway * 0.15)
     sprite = shift_region(sprite, right_braid, braid_sway, abs(braid_sway) * 0.1, braid_sway * 0.12)
     sprite = shift_region(sprite, skirt, -braid_sway * 0.12, -skirt_lift, braid_sway * 0.04)
-    sprite = shift_region(sprite, free_hand, -abs(hand_wave) * 0.15, -hand_wave * 0.35, -hand_wave * 0.7)
+    sprite = shift_region(sprite, hat_tip, hat_sway * 0.5, abs(hat_sway) * 0.18)
+    sprite = shift_region(sprite, free_hand, -abs(hand_wave) * 0.12, -hand_wave * 0.58,
+                          -hand_wave * 1.1, center=(73, 101))
+
+    cloth = Image.new("RGBA", sprite.size)
+    add_cloth_details(cloth, skirt_lift, hat_sway, braid_sway)
+    cloth_mask = ImageChops.lighter(skirt, hat)
+    cloth.putalpha(ImageChops.multiply(cloth.getchannel("A"), cloth_mask))
+    sprite.alpha_composite(cloth)
 
     canvas.alpha_composite(sprite, (round(body_x), round(body_y)))
     effects = Image.new("RGBA", canvas.size)
@@ -175,7 +210,8 @@ def frame_sequence(base: Image.Image, row: int, count: int) -> list[Image.Image]
             breath = ease_in_out((1 - math.cos(2 * math.pi * t)) / 2)
             frames.append(render_frame(base, body_y=-1.3 * breath, squash=-0.008 * breath,
                                        braid_sway=1.4 * wave, skirt_lift=0.7 * breath,
-                                       blink=1 if i == count - 1 else 0, gem=0.3 + 0.18 * breath))
+                                       blink=1 if i == count - 1 else 0, gem=0.3 + 0.18 * breath,
+                                       hat_sway=0.7 * wave))
         elif row in (1, 2, 7):  # running: opposite body/hair phases and alternating footfall puffs
             direction = 1 if row != 2 else -1
             bounce = abs(math.sin(2 * math.pi * t))
@@ -183,7 +219,7 @@ def frame_sequence(base: Image.Image, row: int, count: int) -> list[Image.Image]
                                        squash=0.025 * (1 - bounce), tilt=-direction * 2.3,
                                        braid_sway=-direction * (4.5 * wave + 1.5),
                                        skirt_lift=2.5 * bounce, gem=0.42 + 0.25 * bounce,
-                                       dust=max(0, 1 - bounce * 1.8)))
+                                       dust=max(0, 1 - bounce * 1.8), hat_sway=direction * 2.2 * wave))
         elif row == 3:  # wave: bashful lean, raised free hand and luminous heart cluster
             lift = math.sin(math.pi * min(1, t * 1.35))
             frames.append(render_frame(base, body_y=-2.5 * lift, body_x=1.2 * lift,
@@ -191,14 +227,14 @@ def frame_sequence(base: Image.Image, row: int, count: int) -> list[Image.Image]
                                        skirt_lift=1.2 * lift, hand_wave=7 + 4 * wave,
                                        mood=0.75 + 0.25 * lift, blink=1 if i == 2 else 0,
                                        gem=0.65 + 0.35 * lift, hearts=1,
-                                       heart_phase=(t * 1.4) % 1.35))
+                                       heart_phase=(t * 1.4) % 1.35, hat_sway=1.5 * wave))
         elif row == 4:  # jump: anticipation, launch, apex, fall and cushioned landing
             poses = [
-                dict(body_y=2, squash=0.055, braid_sway=1, skirt_lift=0, hand_wave=1, dust=0.25),
-                dict(body_y=-8, squash=-0.025, braid_sway=-3, skirt_lift=3, hand_wave=6, dust=1),
-                dict(body_y=-18, squash=-0.035, braid_sway=-6, skirt_lift=6, hand_wave=10),
-                dict(body_y=-11, squash=-0.015, braid_sway=-2, skirt_lift=4, hand_wave=7),
-                dict(body_y=1, squash=0.045, braid_sway=4, skirt_lift=1, hand_wave=2, dust=0.8),
+                dict(body_y=2, squash=0.055, braid_sway=1, skirt_lift=0, hand_wave=2, dust=0.25, hat_sway=-1),
+                dict(body_y=-8, squash=-0.025, braid_sway=-3, skirt_lift=3, hand_wave=13, dust=1, hat_sway=-3),
+                dict(body_y=-18, squash=-0.035, braid_sway=-6, skirt_lift=7, hand_wave=20, hat_sway=-5),
+                dict(body_y=-11, squash=-0.015, braid_sway=-2, skirt_lift=5, hand_wave=15, hat_sway=2),
+                dict(body_y=1, squash=0.045, braid_sway=4, skirt_lift=1, hand_wave=5, dust=0.8, hat_sway=4),
             ]
             pose = poses[i]
             frames.append(render_frame(base, **pose, mood=0.9, blink=1 if i == 2 else 0,

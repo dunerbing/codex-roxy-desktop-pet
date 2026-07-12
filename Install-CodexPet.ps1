@@ -29,9 +29,27 @@ if (Test-Path -LiteralPath $destination) {
 New-Item -ItemType Directory -Force -Path $destination | Out-Null
 Copy-Item -LiteralPath (Join-Path $source 'pet.json') -Destination $destination -Force
 Copy-Item -LiteralPath (Join-Path $source 'spritesheet.png') -Destination $destination -Force
+Copy-Item -LiteralPath (Join-Path $source 'encouragement.wav') -Destination $destination -Force
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Voice-Companion.ps1') -Destination $destination -Force
+
+$startupDirectory = [Environment]::GetFolderPath('Startup')
+$shortcutPath = Join-Path $startupDirectory 'Roxy Codex Pet Voice.lnk'
+$shell = New-Object -ComObject WScript.Shell
+$shortcut = $shell.CreateShortcut($shortcutPath)
+$shortcut.TargetPath = 'powershell.exe'
+$shortcut.Arguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$(Join-Path $destination 'Voice-Companion.ps1')`""
+$shortcut.WorkingDirectory = $destination
+$shortcut.WindowStyle = 7
+$shortcut.Description = 'Roxy Codex desktop pet voice companion'
+$shortcut.Save()
+
+Start-Process powershell.exe -WindowStyle Hidden -ArgumentList @(
+    '-NoProfile', '-ExecutionPolicy', 'Bypass',
+    '-File', ('"{0}"' -f (Join-Path $destination 'Voice-Companion.ps1'))
+)
 
 Write-Host ''
 Write-Host 'Roxy Inspired Mage installed successfully.' -ForegroundColor Green
 Write-Host "Installed at: $destination"
 Write-Host 'Restart Codex, then select it from Settings > Pets.'
-
+Write-Host 'Voice companion enabled: hover over the pet to hear encouragement.'

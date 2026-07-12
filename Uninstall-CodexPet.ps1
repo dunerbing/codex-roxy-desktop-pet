@@ -18,6 +18,14 @@ if (-not (Test-Path -LiteralPath $destination)) {
     exit 0
 }
 
+$shortcutPath = Join-Path ([Environment]::GetFolderPath('Startup')) 'Roxy Codex Pet Voice.lnk'
+if (Test-Path -LiteralPath $shortcutPath) {
+    Remove-Item -LiteralPath $shortcutPath -Force
+}
+
+Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe'" |
+    Where-Object { $_.CommandLine -like "*$destination*Voice-Companion.ps1*" } |
+    ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+
 Remove-Item -LiteralPath $destination -Recurse -Force
 Write-Host 'Roxy Inspired Mage uninstalled. Restart Codex to refresh the pet list.' -ForegroundColor Green
-

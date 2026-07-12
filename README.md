@@ -2,7 +2,8 @@
 
 An animated, fan-made desktop pet for the Codex Windows app. It includes
 coordinated jumping, hair and skirt motion, glowing hearts, a pulsing staff gem,
-and shy/happy expressions.
+shy/happy expressions, and the spoken encouragement "今天也要加油哦！" when
+the pointer enters the pet and triggers its jump interaction.
 
 ![Animation preview](docs/animation-preview.gif)
 
@@ -20,6 +21,9 @@ The installer copies the pet to:
 ```
 
 It backs up an existing installation before replacing it.
+The installer also enables the lightweight voice companion at Windows sign-in.
+It watches only the bounds of the small Codex pet window and does not capture
+keyboard input, screenshots, or network data.
 
 ## Uninstall
 
@@ -44,6 +48,11 @@ Codex sprite version 2 uses a `1536 x 2288` sheet containing an `8 x 11` grid
 of `192 x 208` frames. Animation frame counts are constrained by the Codex
 desktop pet player.
 
+Codex custom-pet metadata does not currently provide a sound-event field. The
+included voice companion therefore detects the same pointer-entry interaction
+that triggers the jump and plays the bundled local WAV file. It does not modify
+the Codex application package.
+
 ## Project layout
 
 ```text
@@ -61,4 +70,3 @@ artwork is unofficial fan art and is not covered by the MIT License. See
 
 This project is not affiliated with or endorsed by OpenAI, Codex, the creators
 of *Mushoku Tensei*, or their rights holders.
-
